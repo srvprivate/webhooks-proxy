@@ -1,8 +1,8 @@
-// Datto to Mattermost webhook proxy for Vercel
+// Datto to Mattermost Webhook Proxy for Vercel
 // File: api/webhook.js
 
 export default async function handler(req, res) {
-  // Enable CORS for testing
+  // Enable CORS
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
@@ -16,43 +16,62 @@ export default async function handler(req, res) {
   }
 
   try {
-    console.log('Received webhook:', JSON.stringify(req.body, null, 2));
+    console.log('Received Datto webhook payload:', JSON.stringify(req.body, null, 2));
     
     const slackPayload = req.body;
     
-    // Handle Slack blocks format from Datto
+    // Validate Slack blocks format from Datto
     if (!slackPayload.blocks || !Array.isArray(slackPayload.blocks)) {
-      throw new Error('Invalid Slack payload format');
+      console.error('Invalid payload - missing blocks array');
+      throw new Error('Invalid Slack payload format - missing blocks');
     }
     
-    // Extract header info
+    // Extract header info (blocks[0])
     const headerBlock = slackPayload.blocks[0];
-    const headerText = headerBlock?.text?.text || 'Alert';
+    const headerText = headerBlock?.text?.text || 'Monitoring Alert';
+    console.log('Header text:', headerText);
     
-    // Extract device and site from header: "New monitoring alert on [device] | [site]"
+    // Parse header: "New monitoring alert on [device] | [site]"
     const headerMatch = headerText.match(/New monitoring alert on (.+?) \| (.+)/);
-    const deviceName = headerMatch?.[1] || 'Unknown Device';
-    const siteName = headerMatch?.[2] || 'Unknown Site';
+    const deviceName = headerMatch?.[1]?.trim() || 'Unknown Device';
+    const siteName = headerMatch?.[2]?.trim() || 'Unknown Site';
     
-    // Find the section with fields (usually blocks[1])
+    // Find the main fields section (usually blocks[1])
     const fieldsBlock = slackPayload.blocks.find(block => 
-      block.type === 'section' && block.fields && block.fields.length > 0
+      block.type === 'section' && 
+      block.fields && 
+      Array.isArray(block.fields) && 
+      block.fields.length > 0
     );
     
-    const fields = fieldsBlock?.fields || [];
+    if (!fieldsBlock) {
+      console.error('No fields block found in payload');
+      throw new Error('No fields section found in Slack payload');
+    }
     
-    // Helper to extract field values
+    const fields = fieldsBlock.fields;
+    console.log('Found fields:', fields.length);
+    
+    // Helper function to extract field values
     const getFieldValue = (searchTerm) => {
       const field = fields.find(f => 
-        f.text && f.text.includes(searchTerm)
+        f.text && 
+        f.type === 'mrkdwn' && 
+        f.text.toLowerCase().includes(searchTerm.toLowerCase())
       );
-      if (!field) return 'N/A';
       
-      // Remove markdown formatting and extract value
-      return field.text.replace(/^\*[^*]+\*\s*/, '').trim();
+      if (!field) {
+        console.log(`Field not found: ${searchTerm}`);
+        return 'N/A';
+      }
+      
+      // Remove markdown formatting: *Category:* Value -> Value
+      const value = field.text.replace(/^\*[^*]+\*\s*/, '').trim();
+      console.log(`${searchTerm}: ${value}`);
+      return value || 'N/A';
     };
     
-    // Extract all the alert data
+    // Extract all alert data
     const category = getFieldValue('Category');
     const description = getFieldValue('Description');
     const alertType = getFieldValue('Alert Type');
@@ -61,58 +80,83 @@ export default async function handler(req, res) {
     const lastUser = getFieldValue('Last User');
     const os = getFieldValue('OS');
     
-    // Find links section
+    // Find the links section (usually has View Device, View Alert, etc.)
     const linksBlock = slackPayload.blocks.find(block => 
       block.type === 'section' && 
       block.fields && 
       block.fields.some(f => f.text && f.text.includes('View Device'))
     );
     
-    const linkFields = linksBlock?.fields || [];
+    let deviceUrl = '#', alertUrl = '#', siteUrl = '#', remoteUrl = '#';
     
-    // Extract URLs from markdown links
-    const extractUrl = (fieldText) => {
-      if (!fieldText) return '#';
-      const match = fieldText.match(/<([^|>]+)/);
-      return match?.[1] || '#';
-    };
+    if (linksBlock) {
+      const linkFields = linksBlock.fields;
+      
+      // Extract URLs from Slack markdown links: <https://url|Text>
+      const extractUrl = (fieldText) => {
+        if (!fieldText) return '#';
+        const match = fieldText.match(/<([^|>]+)/);
+        return match?.[1] || '#';
+      };
+      
+      deviceUrl = extractUrl(linkFields.find(f => f.text?.includes('View Device'))?.text);
+      alertUrl = extractUrl(linkFields.find(f => f.text?.includes('View Alert'))?.text);
+      siteUrl = extractUrl(linkFields.find(f => f.text?.includes('View Site'))?.text);
+      remoteUrl = extractUrl(linkFields.find(f => f.text?.includes('Web Remote'))?.text);
+    }
     
-    const deviceUrl = extractUrl(linkFields.find(f => f.text?.includes('View Device'))?.text);
-    const alertUrl = extractUrl(linkFields.find(f => f.text?.includes('View Alert'))?.text);
-    const siteUrl = extractUrl(linkFields.find(f => f.text?.includes('View Site'))?.text);
-    const remoteUrl = extractUrl(linkFields.find(f => f.text?.includes('Web Remote'))?.text);
+    console.log('Extracted URLs:', { deviceUrl, alertUrl, siteUrl, remoteUrl });
     
-    // Determine color and priority
-    let color = '#ff6b35'; // default orange
+    // Determine alert priority and color based on type/category
+    let color = '#ff6b35'; // Default orange
     let priority = 'Medium';
+    let priorityEmoji = '⚠️';
     
     const alertLower = alertType.toLowerCase();
     const categoryLower = category.toLowerCase();
+    const descLower = description.toLowerCase();
     
-    if (alertLower.includes('critical') || categoryLower.includes('critical')) {
-      color = '#d32f2f';
+    if (alertLower.includes('critical') || categoryLower.includes('critical') || descLower.includes('critical')) {
+      color = '#d32f2f'; // Red
       priority = 'Critical';
-    } else if (alertLower.includes('warning') || categoryLower.includes('warning')) {
-      color = '#ffa000';
-      priority = 'Warning';
-    } else if (alertLower.includes('info') || categoryLower.includes('info')) {
-      color = '#1976d2';
+      priorityEmoji = '🔴';
+    } else if (alertLower.includes('warning') || categoryLower.includes('warning') || descLower.includes('warning')) {
+      color = '#ffa000'; // Yellow
+      priority = 'Warning';  
+      priorityEmoji = '🟡';
+    } else if (alertLower.includes('info') || categoryLower.includes('info') || descLower.includes('info')) {
+      color = '#1976d2'; // Blue
       priority = 'Info';
+      priorityEmoji = '🔵';
+    } else if (alertLower.includes('success') || categoryLower.includes('success') || descLower.includes('resolved')) {
+      color = '#388e3c'; // Green
+      priority = 'Resolved';
+      priorityEmoji = '✅';
     }
     
     // Create rich Mattermost payload
     const mattermostPayload = {
       username: "Datto RMM",
       icon_url: "https://i.imgur.com/YJhsAgQ.png",
-      text: `**${alertType}** Alert - ${priority}`,
+      text: `${priorityEmoji} **${alertType}** Alert`,
       attachments: [
         {
           color: color,
-          fallback: `${alertType} Alert on ${deviceName}: ${description}`,
-          title: `Alert: ${deviceName}`,
-          title_link: alertUrl,
+          fallback: `${priority} ${alertType} Alert on ${deviceName} at ${siteName}: ${description}`,
+          title: `${deviceName} - ${siteName}`,
+          title_link: deviceUrl,
           text: `**${description}**`,
           fields: [
+            {
+              title: "Priority",
+              value: `${priorityEmoji} ${priority}`,
+              short: true
+            },
+            {
+              title: "Category", 
+              value: category,
+              short: true
+            },
             {
               title: "Site",
               value: siteName,
@@ -124,27 +168,17 @@ export default async function handler(req, res) {
               short: true
             },
             {
-              title: "Category",
-              value: category,
-              short: true
-            },
-            {
-              title: "Priority", 
-              value: priority,
-              short: true
-            },
-            {
               title: "Last User",
               value: lastUser,
               short: true
             },
             {
-              title: "OS",
+              title: "Operating System",
               value: os,
               short: true
             },
             {
-              title: "Trigger Details",
+              title: "Alert Details",
               value: triggerDetails,
               short: false
             }
@@ -156,18 +190,29 @@ export default async function handler(req, res) {
       ]
     };
     
-    // Add action buttons as text since Mattermost action buttons are limited
-    const actionText = `\n**Quick Actions:** [Device](${deviceUrl}) • [Alert](${alertUrl}) • [Site](${siteUrl}) • [Remote](${remoteUrl})`;
-    mattermostPayload.attachments[0].text += actionText;
+    // Add quick action links
+    if (deviceUrl !== '#' || alertUrl !== '#') {
+      const actionLinks = [];
+      if (deviceUrl !== '#') actionLinks.push(`[View Device](${deviceUrl})`);
+      if (alertUrl !== '#') actionLinks.push(`[View Alert](${alertUrl})`);
+      if (siteUrl !== '#') actionLinks.push(`[View Site](${siteUrl})`);
+      if (remoteUrl !== '#') actionLinks.push(`[Remote Access](${remoteUrl})`);
+      
+      if (actionLinks.length > 0) {
+        mattermostPayload.attachments[0].text += `\n\n**Quick Actions:** ${actionLinks.join(' • ')}`;
+      }
+    }
     
-    console.log('Sending to Mattermost:', JSON.stringify(mattermostPayload, null, 2));
+    console.log('Generated Mattermost payload:', JSON.stringify(mattermostPayload, null, 2));
     
     // Send to Mattermost
     const mattermostUrl = process.env.MATTERMOST_WEBHOOK_URL;
     if (!mattermostUrl) {
-      throw new Error('MATTERMOST_WEBHOOK_URL environment variable not set');
+      console.error('MATTERMOST_WEBHOOK_URL environment variable not set');
+      throw new Error('MATTERMOST_WEBHOOK_URL environment variable not configured');
     }
     
+    console.log('Sending to Mattermost...');
     const response = await fetch(mattermostUrl, {
       method: 'POST',
       headers: {
@@ -178,18 +223,33 @@ export default async function handler(req, res) {
     
     if (!response.ok) {
       const errorText = await response.text();
+      console.error('Mattermost webhook failed:', response.status, errorText);
       throw new Error(`Mattermost webhook failed (${response.status}): ${errorText}`);
     }
     
-    console.log('Successfully sent to Mattermost');
-    res.status(200).json({ success: true, message: 'Alert forwarded to Mattermost' });
+    console.log('✅ Successfully forwarded alert to Mattermost');
+    
+    // Return success response
+    res.status(200).json({ 
+      success: true, 
+      message: 'Alert successfully forwarded to Mattermost',
+      alert: {
+        device: deviceName,
+        site: siteName,
+        type: alertType,
+        priority: priority
+      }
+    });
     
   } catch (error) {
-    console.error('Webhook proxy error:', error);
+    console.error('❌ Webhook proxy error:', error.message);
+    console.error('Stack trace:', error.stack);
+    
+    // Return error response
     res.status(500).json({ 
       error: 'Webhook proxy failed', 
       message: error.message,
-      details: process.env.NODE_ENV === 'development' ? error.stack : undefined
+      timestamp: new Date().toISOString()
     });
   }
 }
