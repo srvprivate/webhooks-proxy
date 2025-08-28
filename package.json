@@ -1,0 +1,6 @@
+{
+  "type": "module",
+  "name": "datto-webhook-proxy",
+  "version": "1.0.0",
+  "description": "Webhook proxy to convert Datto Slack format to Mattermost format"
+}
