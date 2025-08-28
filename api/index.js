@@ -211,68 +211,38 @@ export default async function handler(req, res) {
       actions.push({
         name: "View Device",
         integration: {
-          url: deviceUrl,
-          context: {
-            action: "view_device",
-            device_id: deviceName
-          }
-        },
-        style: "primary"
+          url: deviceUrl
+        }
       });
     }
     if (alertUrl !== '#') {
       actions.push({
         name: "View Alert", 
         integration: {
-          url: alertUrl,
-          context: {
-            action: "view_alert"
-          }
-        },
-        style: "danger"
+          url: alertUrl
+        }
       });
     }
     if (siteUrl !== '#') {
       actions.push({
         name: "Manage Site",
         integration: {
-          url: siteUrl,
-          context: {
-            action: "view_site"
-          }
-        },
-        style: "default"
+          url: siteUrl
+        }
       });
     }
     if (remoteUrl !== '#') {
       actions.push({
         name: "Remote Access",
         integration: {
-          url: remoteUrl,
-          context: {
-            action: "remote_access"
-          }
-        },
-        style: "primary"
+          url: remoteUrl
+        }
       });
     }
     
     // Add actions to attachment if we have any
     if (actions.length > 0) {
       mattermostPayload.attachments[0].actions = actions;
-    }
-    
-    // Also add text links as backup
-    if (deviceUrl !== '#' || alertUrl !== '#') {
-      const actionLinks = [];
-      if (deviceUrl !== '#') actionLinks.push(`[**View Device**](${deviceUrl})`);
-      if (alertUrl !== '#') actionLinks.push(`[**View Alert**](${alertUrl})`);
-      if (siteUrl !== '#') actionLinks.push(`[**Manage Site**](${siteUrl})`);
-      if (remoteUrl !== '#') actionLinks.push(`[**Remote Access**](${remoteUrl})`);
-      
-      if (actionLinks.length > 0) {
-        mattermostPayload.attachments[0].text += `\n\n**Actions:** ${actionLinks.join(' • ')}`;
-      }
     }
     
     console.log('Generated Mattermost payload:', JSON.stringify(mattermostPayload, null, 2));
