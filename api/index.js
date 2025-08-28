@@ -1,4 +1,4 @@
-module.exports = async (req, res) => {
+export default async function handler(req, res) {
   try {
     console.log('Function called successfully');
     
@@ -23,4 +23,4 @@ module.exports = async (req, res) => {
       message: error.message 
     });
   }
-};
+}
