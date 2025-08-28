@@ -117,90 +117,106 @@ export default async function handler(req, res) {
     const descLower = description.toLowerCase();
     
     if (alertLower.includes('critical') || categoryLower.includes('critical') || descLower.includes('critical')) {
-      color = '#d32f2f'; // Red
+      color = '#ff0000'; // Bright red for maximum visibility
       priority = 'Critical';
-      priorityEmoji = '🔴';
+      priorityEmoji = '🔥';
     } else if (alertLower.includes('warning') || categoryLower.includes('warning') || descLower.includes('warning')) {
-      color = '#ffa000'; // Yellow
+      color = '#ff8c00'; // Bright orange
       priority = 'Warning';  
-      priorityEmoji = '🟡';
+      priorityEmoji = '⚠️';
     } else if (alertLower.includes('info') || categoryLower.includes('info') || descLower.includes('info')) {
-      color = '#1976d2'; // Blue
+      color = '#00bfff'; // Bright blue
       priority = 'Info';
-      priorityEmoji = '🔵';
+      priorityEmoji = '💡';
     } else if (alertLower.includes('success') || categoryLower.includes('success') || descLower.includes('resolved')) {
-      color = '#388e3c'; // Green
+      color = '#32cd32'; // Bright green
       priority = 'Resolved';
       priorityEmoji = '✅';
+    } else {
+      color = '#ff6b35'; // Default bright orange
+      priority = 'Medium';
+      priorityEmoji = '📊';
     }
     
-    // Create rich Mattermost payload
+    // Create stunning Mattermost payload with enhanced formatting
     const mattermostPayload = {
-      username: "Datto RMM",
+      username: "🔔 Datto RMM Alert System",
       icon_url: "https://i.imgur.com/YJhsAgQ.png",
-      text: `${priorityEmoji} **${alertType}** Alert`,
+      text: `## ${priorityEmoji} **${alertType.toUpperCase()}** ALERT ${priorityEmoji}\n### 📍 **${deviceName}** at **${siteName}**`,
       attachments: [
         {
           color: color,
           fallback: `${priority} ${alertType} Alert on ${deviceName} at ${siteName}: ${description}`,
-          title: `${deviceName} - ${siteName}`,
-          title_link: deviceUrl,
-          text: `**${description}**`,
+          title: `🖥️ ${deviceName} | 🏢 ${siteName}`,
+          title_link: alertUrl,
+          text: `### 📋 Alert Details\n> **${description}**\n\n📊 **Trigger Information:**\n> ${triggerDetails}`,
           fields: [
             {
-              title: "Priority",
-              value: `${priorityEmoji} ${priority}`,
+              title: "🚨 Priority Level",
+              value: `**${priorityEmoji} ${priority.toUpperCase()}**`,
               short: true
             },
             {
-              title: "Category", 
-              value: category,
+              title: "📂 Category", 
+              value: `**${category}**`,
               short: true
             },
             {
-              title: "Site",
-              value: siteName,
+              title: "🌐 Site Location",
+              value: `📍 **${siteName}**`,
               short: true
             },
             {
-              title: "Device",
-              value: deviceName,
+              title: "💻 Device Name",
+              value: `🖥️ **${deviceName}**`,
               short: true
             },
             {
-              title: "Last User",
-              value: lastUser,
+              title: "👤 Last Active User",
+              value: `👤 ${lastUser}`,
               short: true
             },
             {
-              title: "Operating System",
-              value: os,
+              title: "⚙️ Operating System",
+              value: `💿 ${os}`,
               short: true
             },
             {
-              title: "Alert Details",
-              value: triggerDetails,
+              title: "📝 Device Description",
+              value: deviceDescription !== 'N/A' ? `📄 ${deviceDescription}` : '📄 *No description available*',
               short: false
             }
           ],
-          footer: "Datto RMM Alert System",
+          footer: "🛡️ Datto RMM Alert System • Real-time Monitoring",
           footer_icon: "https://i.imgur.com/YJhsAgQ.png",
           ts: Math.floor(Date.now() / 1000)
         }
       ]
     };
     
-    // Add quick action links
+    // Add enhanced action buttons section
     if (deviceUrl !== '#' || alertUrl !== '#') {
-      const actionLinks = [];
-      if (deviceUrl !== '#') actionLinks.push(`[View Device](${deviceUrl})`);
-      if (alertUrl !== '#') actionLinks.push(`[View Alert](${alertUrl})`);
-      if (siteUrl !== '#') actionLinks.push(`[View Site](${siteUrl})`);
-      if (remoteUrl !== '#') actionLinks.push(`[Remote Access](${remoteUrl})`);
+      const actionButtons = [];
       
-      if (actionLinks.length > 0) {
-        mattermostPayload.attachments[0].text += `\n\n**Quick Actions:** ${actionLinks.join(' • ')}`;
+      // Create styled action buttons with emojis
+      if (deviceUrl !== '#') actionButtons.push(`🖥️ **[View Device Dashboard](${deviceUrl})**`);
+      if (alertUrl !== '#') actionButtons.push(`🚨 **[Open Alert Details](${alertUrl})**`);
+      if (siteUrl !== '#') actionButtons.push(`🏢 **[Manage Site](${siteUrl})**`);
+      if (remoteUrl !== '#') actionButtons.push(`🖱️ **[Remote Access](${remoteUrl})**`);
+      
+      if (actionButtons.length > 0) {
+        mattermostPayload.attachments[0].text += `\n\n---\n## 🎛️ **Quick Actions**\n${actionButtons.join(' **|** ')}`;
       }
+    }
+    
+    // Add a second attachment for additional visual impact on critical alerts
+    if (priority === 'Critical') {
+      mattermostPayload.attachments.push({
+        color: '#ff0000',
+        text: `⚠️ **IMMEDIATE ATTENTION REQUIRED** ⚠️\n\n🚨 This is a **CRITICAL ALERT** that requires immediate investigation.\n🔥 Device: **${deviceName}**\n📍 Location: **${siteName}**\n⏰ Time: **${new Date().toLocaleString()}**`,
+        footer: "🆘 Critical Alert Banner",
+        footer_icon: "https://cdn-icons-png.flaticon.com/512/564/564619.png"
+      });
     }
     
     console.log('Generated Mattermost payload:', JSON.stringify(mattermostPayload, null, 2));
