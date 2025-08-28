@@ -110,113 +110,99 @@ export default async function handler(req, res) {
     // Determine alert priority and color based on type/category
     let color = '#ff6b35'; // Default orange
     let priority = 'Medium';
-    let priorityEmoji = '⚠️';
+    let priorityIcon = '⚠️';
     
     const alertLower = alertType.toLowerCase();
     const categoryLower = category.toLowerCase();
     const descLower = description.toLowerCase();
     
     if (alertLower.includes('critical') || categoryLower.includes('critical') || descLower.includes('critical')) {
-      color = '#ff0000'; // Bright red for maximum visibility
+      color = '#dc3545'; // Red
       priority = 'Critical';
-      priorityEmoji = '🔥';
+      priorityIcon = '❗';
     } else if (alertLower.includes('warning') || categoryLower.includes('warning') || descLower.includes('warning')) {
-      color = '#ff8c00'; // Bright orange
+      color = '#fd7e14'; // Orange
       priority = 'Warning';  
-      priorityEmoji = '⚠️';
+      priorityIcon = '⚠️';
     } else if (alertLower.includes('info') || categoryLower.includes('info') || descLower.includes('info')) {
-      color = '#00bfff'; // Bright blue
+      color = '#0d6efd'; // Blue
       priority = 'Info';
-      priorityEmoji = '💡';
+      priorityIcon = 'ℹ️';
     } else if (alertLower.includes('success') || categoryLower.includes('success') || descLower.includes('resolved')) {
-      color = '#32cd32'; // Bright green
+      color = '#198754'; // Green
       priority = 'Resolved';
-      priorityEmoji = '✅';
-    } else {
-      color = '#ff6b35'; // Default bright orange
-      priority = 'Medium';
-      priorityEmoji = '📊';
+      priorityIcon = '✅';
     }
     
-    // Create stunning Mattermost payload with enhanced formatting
+    // Create clean, professional Mattermost payload
     const mattermostPayload = {
-      username: "🔔 Datto RMM Alert System",
+      username: "Datto RMM",
       icon_url: "https://i.imgur.com/YJhsAgQ.png",
-      text: `## ${priorityEmoji} **${alertType.toUpperCase()}** ALERT ${priorityEmoji}\n### 📍 **${deviceName}** at **${siteName}**`,
+      text: `**${alertType}** Alert ${priorityIcon}`,
       attachments: [
         {
           color: color,
           fallback: `${priority} ${alertType} Alert on ${deviceName} at ${siteName}: ${description}`,
-          title: `🖥️ ${deviceName} | 🏢 ${siteName}`,
+          title: `${deviceName} - ${siteName}`,
           title_link: alertUrl,
-          text: `### 📋 Alert Details\n> **${description}**\n\n📊 **Trigger Information:**\n> ${triggerDetails}`,
+          text: `**${description}**`,
           fields: [
             {
-              title: "🚨 Priority Level",
-              value: `**${priorityEmoji} ${priority.toUpperCase()}**`,
+              title: "Priority",
+              value: `${priorityIcon} **${priority}**`,
               short: true
             },
             {
-              title: "📂 Category", 
-              value: `**${category}**`,
+              title: "Category", 
+              value: category,
               short: true
             },
             {
-              title: "🌐 Site Location",
-              value: `📍 **${siteName}**`,
+              title: "Site",
+              value: siteName,
               short: true
             },
             {
-              title: "💻 Device Name",
-              value: `🖥️ **${deviceName}**`,
+              title: "Device",
+              value: deviceName,
               short: true
             },
             {
-              title: "👤 Last Active User",
-              value: `👤 ${lastUser}`,
+              title: "Last User",
+              value: lastUser,
               short: true
             },
             {
-              title: "⚙️ Operating System",
-              value: `💿 ${os}`,
+              title: "Operating System",
+              value: os,
               short: true
             },
             {
-              title: "📝 Device Description",
-              value: deviceDescription !== 'N/A' ? `📄 ${deviceDescription}` : '📄 *No description available*',
+              title: "Alert Details",
+              value: triggerDetails,
               short: false
             }
           ],
-          footer: "🛡️ Datto RMM Alert System • Real-time Monitoring",
+          footer: "Datto RMM Alert System",
           footer_icon: "https://i.imgur.com/YJhsAgQ.png",
           ts: Math.floor(Date.now() / 1000)
         }
       ]
     };
     
-    // Add enhanced action buttons section
+    // Add professional action buttons (Teams-style)
     if (deviceUrl !== '#' || alertUrl !== '#') {
       const actionButtons = [];
       
-      // Create styled action buttons with emojis
-      if (deviceUrl !== '#') actionButtons.push(`🖥️ **[View Device Dashboard](${deviceUrl})**`);
-      if (alertUrl !== '#') actionButtons.push(`🚨 **[Open Alert Details](${alertUrl})**`);
-      if (siteUrl !== '#') actionButtons.push(`🏢 **[Manage Site](${siteUrl})**`);
-      if (remoteUrl !== '#') actionButtons.push(`🖱️ **[Remote Access](${remoteUrl})**`);
+      // Create clean, clickable action buttons
+      if (deviceUrl !== '#') actionButtons.push(`[**View Device**](${deviceUrl})`);
+      if (alertUrl !== '#') actionButtons.push(`[**View Alert**](${alertUrl})`);
+      if (siteUrl !== '#') actionButtons.push(`[**Manage Site**](${siteUrl})`);
+      if (remoteUrl !== '#') actionButtons.push(`[**Remote Access**](${remoteUrl})`);
       
       if (actionButtons.length > 0) {
-        mattermostPayload.attachments[0].text += `\n\n---\n## 🎛️ **Quick Actions**\n${actionButtons.join(' **|** ')}`;
+        mattermostPayload.attachments[0].text += `\n\n**Actions:** ${actionButtons.join(' • ')}`;
       }
-    }
-    
-    // Add a second attachment for additional visual impact on critical alerts
-    if (priority === 'Critical') {
-      mattermostPayload.attachments.push({
-        color: '#ff0000',
-        text: `⚠️ **IMMEDIATE ATTENTION REQUIRED** ⚠️\n\n🚨 This is a **CRITICAL ALERT** that requires immediate investigation.\n🔥 Device: **${deviceName}**\n📍 Location: **${siteName}**\n⏰ Time: **${new Date().toLocaleString()}**`,
-        footer: "🆘 Critical Alert Banner",
-        footer_icon: "https://cdn-icons-png.flaticon.com/512/564/564619.png"
-      });
     }
     
     console.log('Generated Mattermost payload:', JSON.stringify(mattermostPayload, null, 2));
