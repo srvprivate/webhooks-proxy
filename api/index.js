@@ -16,7 +16,8 @@ export default async function handler(req, res) {
   }
 
   try {
-    console.log('Received Datto webhook payload:', JSON.stringify(req.body, null, 2));
+    console.log('Received Datto webhook payload:');
+    console.log('Blocks:', JSON.stringify(req.body.blocks, null, 2));
     
     const slackPayload = req.body;
     
@@ -36,27 +37,39 @@ export default async function handler(req, res) {
     const deviceName = headerMatch?.[1]?.trim() || 'Unknown Device';
     const siteName = headerMatch?.[2]?.trim() || 'Unknown Site';
     
-    // Find the main fields section (usually blocks[1])
-    const fieldsBlock = slackPayload.blocks.find(block => 
+    // Find the main fields section - look more broadly for field data
+    let fieldsBlock = slackPayload.blocks.find(block => 
       block.type === 'section' && 
       block.fields && 
       Array.isArray(block.fields) && 
       block.fields.length > 0
     );
     
+    // If not found, try looking in other blocks
+    if (!fieldsBlock) {
+      for (let i = 1; i < slackPayload.blocks.length; i++) {
+        const block = slackPayload.blocks[i];
+        if (block.type === 'section' && block.fields && block.fields.length > 0) {
+          fieldsBlock = block;
+          break;
+        }
+      }
+    }
+    
     if (!fieldsBlock) {
       console.error('No fields block found in payload');
+      console.log('Available blocks:', slackPayload.blocks.map(b => ({ type: b.type, hasFields: !!b.fields })));
       throw new Error('No fields section found in Slack payload');
     }
     
     const fields = fieldsBlock.fields;
-    console.log('Found fields:', fields.length);
+    console.log('Found fields:', fields.map(f => f.text?.substring(0, 50)));
     
-    // Helper function to extract field values
+    // More flexible field extraction
     const getFieldValue = (searchTerm) => {
       const field = fields.find(f => 
         f.text && 
-        f.type === 'mrkdwn' && 
+        (f.type === 'mrkdwn' || !f.type) && 
         f.text.toLowerCase().includes(searchTerm.toLowerCase())
       );
       
@@ -65,8 +78,10 @@ export default async function handler(req, res) {
         return 'N/A';
       }
       
-      // Remove markdown formatting: *Category:* Value -> Value
-      const value = field.text.replace(/^\*[^*]+\*\s*/, '').trim();
+      // More robust markdown parsing: *Category:* Value -> Value
+      let value = field.text.replace(/^\*[^*]+\*\s*/, '').trim();
+      // Also handle plain text format: Category: Value
+      value = value.replace(/^[^:]+:\s*/, '').trim();
       console.log(`${searchTerm}: ${value}`);
       return value || 'N/A';
     };
@@ -190,18 +205,73 @@ export default async function handler(req, res) {
       ]
     };
     
-    // Add professional action buttons (Teams-style)
+    // Add actual clickable buttons (Mattermost interactive messages)
+    const actions = [];
+    if (deviceUrl !== '#') {
+      actions.push({
+        name: "View Device",
+        integration: {
+          url: deviceUrl,
+          context: {
+            action: "view_device",
+            device_id: deviceName
+          }
+        },
+        style: "primary"
+      });
+    }
+    if (alertUrl !== '#') {
+      actions.push({
+        name: "View Alert", 
+        integration: {
+          url: alertUrl,
+          context: {
+            action: "view_alert"
+          }
+        },
+        style: "danger"
+      });
+    }
+    if (siteUrl !== '#') {
+      actions.push({
+        name: "Manage Site",
+        integration: {
+          url: siteUrl,
+          context: {
+            action: "view_site"
+          }
+        },
+        style: "default"
+      });
+    }
+    if (remoteUrl !== '#') {
+      actions.push({
+        name: "Remote Access",
+        integration: {
+          url: remoteUrl,
+          context: {
+            action: "remote_access"
+          }
+        },
+        style: "primary"
+      });
+    }
+    
+    // Add actions to attachment if we have any
+    if (actions.length > 0) {
+      mattermostPayload.attachments[0].actions = actions;
+    }
+    
+    // Also add text links as backup
     if (deviceUrl !== '#' || alertUrl !== '#') {
-      const actionButtons = [];
+      const actionLinks = [];
+      if (deviceUrl !== '#') actionLinks.push(`[**View Device**](${deviceUrl})`);
+      if (alertUrl !== '#') actionLinks.push(`[**View Alert**](${alertUrl})`);
+      if (siteUrl !== '#') actionLinks.push(`[**Manage Site**](${siteUrl})`);
+      if (remoteUrl !== '#') actionLinks.push(`[**Remote Access**](${remoteUrl})`);
       
-      // Create clean, clickable action buttons
-      if (deviceUrl !== '#') actionButtons.push(`[**View Device**](${deviceUrl})`);
-      if (alertUrl !== '#') actionButtons.push(`[**View Alert**](${alertUrl})`);
-      if (siteUrl !== '#') actionButtons.push(`[**Manage Site**](${siteUrl})`);
-      if (remoteUrl !== '#') actionButtons.push(`[**Remote Access**](${remoteUrl})`);
-      
-      if (actionButtons.length > 0) {
-        mattermostPayload.attachments[0].text += `\n\n**Actions:** ${actionButtons.join(' • ')}`;
+      if (actionLinks.length > 0) {
+        mattermostPayload.attachments[0].text += `\n\n**Actions:** ${actionLinks.join(' • ')}`;
       }
     }
     
