@@ -205,14 +205,15 @@ export default async function handler(req, res) {
       ]
     };
     
-    // Add actual clickable buttons (Mattermost interactive messages)
+    // Add actual clickable buttons with colors
     const actions = [];
     if (deviceUrl !== '#') {
       actions.push({
         name: "View Device",
         integration: {
           url: deviceUrl
-        }
+        },
+        style: "primary"  // Blue button
       });
     }
     if (alertUrl !== '#') {
@@ -220,7 +221,8 @@ export default async function handler(req, res) {
         name: "View Alert", 
         integration: {
           url: alertUrl
-        }
+        },
+        style: "danger"   // Red button
       });
     }
     if (siteUrl !== '#') {
@@ -228,7 +230,8 @@ export default async function handler(req, res) {
         name: "Manage Site",
         integration: {
           url: siteUrl
-        }
+        },
+        style: "default"  // Gray button
       });
     }
     if (remoteUrl !== '#') {
@@ -236,7 +239,8 @@ export default async function handler(req, res) {
         name: "Remote Access",
         integration: {
           url: remoteUrl
-        }
+        },
+        style: "good"     // Green button
       });
     }
     
