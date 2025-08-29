@@ -21,14 +21,13 @@ export default async function handler(req, res) {
     
     const payload = req.body;
     
-    // Validate OpenPhone payload structure
-    if (!payload.object || !payload.object.data) {
-      throw new Error('Invalid OpenPhone payload format');
+    // Validate OpenPhone payload structure  
+    if (!payload.object || !payload.object.type) {
+      throw new Error('Invalid OpenPhone payload format - missing event type');
     }
     
-    const event = payload.object;
-    const eventData = event.data.object;
-    const eventType = event.type;
+    const eventType = payload.object.type;
+    const eventData = payload.object.data?.object || {};
     
     console.log('Event type:', eventType);
     console.log('Event data:', eventData);
@@ -254,7 +253,7 @@ export default async function handler(req, res) {
           fields: fields,
           footer: "OpenPhone Communication System",
           footer_icon: "https://assets-global.website-files.com/5f3c19f18169b62a0d0bf387/5f3f2dcc8169b6d9ef0c7b60_OpenPhone%20Mark.png",
-          ts: Math.floor(new Date(eventData.createdAt || event.createdAt).getTime() / 1000)
+          ts: Math.floor(new Date(eventData.createdAt || payload.object.createdAt).getTime() / 1000)
         }
       ]
     };
