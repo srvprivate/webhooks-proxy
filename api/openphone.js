@@ -41,6 +41,7 @@ export default async function handler(req, res) {
       case 'call.completed':
         const direction = eventData.direction;
         const wasAnswered = eventData.answeredAt !== null;
+        const hasVoicemail = eventData.voicemail !== null;
         
         if (direction === 'incoming') {
           if (wasAnswered) {
@@ -49,10 +50,16 @@ export default async function handler(req, res) {
             color = '#28a745'; // Green
             icon = '✅';
             priority = 'Info';
+          } else if (hasVoicemail) {
+            title = '🎤 Voicemail Left';
+            description = `Caller left a voicemail message`;
+            color = '#6f42c1'; // Purple
+            icon = '🎤';
+            priority = 'Medium';
           } else {
             title = '📞 Missed Call';
             description = `Incoming call was not answered`;
-            color = '#dc3545'; // Red for missed calls - more urgent
+            color = '#dc3545'; // Red for missed calls
             icon = '❗';
             priority = 'Warning';
           }
@@ -213,6 +220,15 @@ export default async function handler(req, res) {
           value: duration,
           short: true
         });
+        
+        // Add voicemail info if present
+        if (eventData.voicemail) {
+          fields.push({
+            title: "Voicemail Duration",
+            value: `${eventData.voicemail.duration}s`,
+            short: true
+          });
+        }
       }
     }
     
