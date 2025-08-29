@@ -213,7 +213,7 @@ export default async function handler(req, res) {
     // Create Mattermost payload
     const mattermostPayload = {
       username: "OpenPhone",
-      icon_url: "https://assets-global.website-files.com/5f3c19f18169b62a0d0bf387/5f3f2dcc8169b6d9ef0c7b60_OpenPhone%20Mark.png",
+      icon_url: "https://cdn-icons-png.flaticon.com/512/724/724664.png",
       text: `${title} ${icon}`,
       attachments: [
         {
@@ -223,7 +223,7 @@ export default async function handler(req, res) {
           text: `**${description}**`,
           fields: fields,
           footer: "OpenPhone Communication System",
-          footer_icon: "https://assets-global.website-files.com/5f3c19f18169b62a0d0bf387/5f3f2dcc8169b6d9ef0c7b60_OpenPhone%20Mark.png",
+          footer_icon: "https://cdn-icons-png.flaticon.com/512/724/724664.png",
           ts: Math.floor(new Date(eventData.createdAt || payload.createdAt).getTime() / 1000)
         }
       ]
@@ -236,6 +236,68 @@ export default async function handler(req, res) {
         value: `[Listen to Voicemail](${eventData.voicemail.url})`,
         short: false
       });
+    }
+    
+    // Add action buttons for OpenPhone events
+    const actions = [];
+    
+    if (eventType.startsWith('call.')) {
+      // For calls, add call back and view conversation buttons
+      if (eventData.from && eventData.from !== eventData.to) {
+        actions.push({
+          name: "Call Back",
+          integration: {
+            url: `tel:${eventData.from}`
+          },
+          style: "good"  // Green
+        });
+      }
+      
+      if (eventData.conversationId) {
+        actions.push({
+          name: "View Conversation",
+          integration: {
+            url: `https://app.openphone.co/conversations/${eventData.conversationId}`
+          },
+          style: "primary"  // Blue
+        });
+      }
+      
+      if (eventData.voicemail && eventData.voicemail.url) {
+        actions.push({
+          name: "Play Voicemail",
+          integration: {
+            url: eventData.voicemail.url
+          },
+          style: "danger"  // Red
+        });
+      }
+    }
+    
+    if (eventType.startsWith('message.')) {
+      // For messages, add reply and view conversation buttons
+      if (eventData.conversationId) {
+        actions.push({
+          name: "Reply",
+          integration: {
+            url: `https://app.openphone.co/conversations/${eventData.conversationId}`
+          },
+          style: "good"  // Green
+        });
+        
+        actions.push({
+          name: "View Conversation",
+          integration: {
+            url: `https://app.openphone.co/conversations/${eventData.conversationId}`
+          },
+          style: "primary"  // Blue
+        });
+      }
+    }
+    
+    // Add actions to attachment if we have any
+    if (actions.length > 0) {
+      mattermostPayload.attachments[0].actions = actions;
     }
     
     console.log('Generated Mattermost payload:', JSON.stringify(mattermostPayload, null, 2));
