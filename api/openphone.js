@@ -21,18 +21,14 @@ export default async function handler(req, res) {
     
     const payload = req.body;
     
-    // Validate OpenPhone payload structure  
-    if (!payload.object || !payload.object.type) {
-      throw new Error('Invalid OpenPhone payload format - missing event type');
-    }
-    
-    const eventType = payload.object.type;
-    const eventData = payload.object.data?.object || {};
+    // Extract event type and data using the structure from debug logs
+    const eventType = payload.object?.type || 'unknown';
+    const eventData = payload.object?.data?.object || {};
     
     console.log('Event type:', eventType);
-    console.log('Event data:', eventData);
+    console.log('Event data:', JSON.stringify(eventData, null, 2));
     
-    // Format phone numbers for display
+    // Format phone numbers
     const formatPhone = (phone) => {
       if (!phone) return 'Unknown';
       const cleaned = phone.replace(/\D/g, '');
@@ -63,120 +59,100 @@ export default async function handler(req, res) {
       }
     };
     
-    // Determine event details and formatting based on event type
+    // Determine event formatting
     let title, description, color, icon, priority;
     
-    switch (eventType) {
-      case 'call.completed':
-        const direction = eventData.direction;
-        const wasAnswered = eventData.answeredAt !== null;
-        const hasVoicemail = eventData.voicemail !== null;
-        
-        if (direction === 'incoming') {
-          if (wasAnswered) {
-            title = 'Incoming Call Completed';
-            description = 'Call answered and completed';
-            color = '#28a745';
-            icon = '✅';
-            priority = 'Info';
-          } else if (hasVoicemail) {
-            title = 'Voicemail Left';
-            description = 'Caller left a voicemail message';
-            color = '#6f42c1';
-            icon = '🎤';
-            priority = 'Medium';
-          } else {
-            title = 'Missed Call';
-            description = 'Incoming call was not answered';
-            color = '#dc3545';
-            icon = '❗';
-            priority = 'Warning';
-          }
-        } else {
-          title = 'Outgoing Call Completed';
-          description = 'Outbound call completed';
-          color = '#007bff';
-          icon = 'ℹ️';
+    if (eventType === 'call.completed') {
+      const direction = eventData.direction;
+      const wasAnswered = eventData.answeredAt !== null;
+      const hasVoicemail = eventData.voicemail !== null;
+      
+      if (direction === 'incoming') {
+        if (wasAnswered) {
+          title = 'Incoming Call Completed';
+          description = 'Call answered and completed';
+          color = '#28a745';
+          icon = '✅';
           priority = 'Info';
+        } else if (hasVoicemail) {
+          title = 'Voicemail Left';
+          description = 'Caller left a voicemail message';
+          color = '#6f42c1';
+          icon = '🎤';
+          priority = 'Medium';
+        } else {
+          title = 'Missed Call';
+          description = 'Incoming call was not answered';
+          color = '#dc3545';
+          icon = '❗';
+          priority = 'Warning';
         }
-        break;
-        
-      case 'call.ringing':
-        title = 'Call Ringing';
-        description = `${eventData.direction === 'incoming' ? 'Incoming' : 'Outgoing'} call is ringing`;
-        color = '#17a2b8';
-        icon = '📞';
+      } else {
+        title = 'Outgoing Call Completed';
+        description = 'Outbound call completed';
+        color = '#007bff';
+        icon = 'ℹ️';
         priority = 'Info';
-        break;
-        
-      case 'message.received':
-        title = 'New Message Received';
-        description = 'Incoming text message received';
-        color = '#198754';
-        icon = '💬';
-        priority = 'Medium';
-        break;
-        
-      case 'message.delivered':
-        title = 'Message Delivered';
-        description = 'Outgoing message has been delivered';
-        color = '#0d6efd';
-        icon = '✅';
-        priority = 'Info';
-        break;
-        
-      default:
-        title = 'OpenPhone Event';
-        description = `Event type: ${eventType}`;
-        color = '#6c757d';
-        icon = '📱';
-        priority = 'Info';
+      }
+    } else if (eventType === 'message.received') {
+      title = 'New Message Received';
+      description = 'Incoming text message received';
+      color = '#198754';
+      icon = '💬';
+      priority = 'Medium';
+    } else if (eventType === 'message.delivered') {
+      title = 'Message Delivered';
+      description = 'Outgoing message has been delivered';
+      color = '#0d6efd';
+      icon = '✅';
+      priority = 'Info';
+    } else {
+      title = 'OpenPhone Event';
+      description = `Event type: ${eventType}`;
+      color = '#6c757d';
+      icon = '📱';
+      priority = 'Info';
     }
     
-    // Build fields array
-    const fields = [];
+    // Build fields
+    const fields = [
+      {
+        title: "Priority",
+        value: `${icon} **${priority}**`,
+        short: true
+      },
+      {
+        title: "Event Type",
+        value: eventType.replace(/\./g, ' ').replace(/\b\w/g, l => l.toUpperCase()),
+        short: true
+      }
+    ];
     
-    // Add priority field
-    fields.push({
-      title: "Priority",
-      value: `${icon} **${priority}**`,
-      short: true
-    });
-    
-    // Add event type field
-    fields.push({
-      title: "Event Type",
-      value: eventType.replace(/\./g, ' ').replace(/\b\w/g, l => l.toUpperCase()),
-      short: true
-    });
-    
-    // Add call-specific fields
-    if (eventType.startsWith('call.') && eventData.direction) {
-      fields.push({
-        title: "Direction",
-        value: eventData.direction === 'incoming' ? '📥 Incoming' : '📤 Outgoing',
-        short: true
-      });
+    // Add call fields if it's a call event
+    if (eventType.startsWith('call.')) {
+      fields.push(
+        {
+          title: "Direction",
+          value: eventData.direction === 'incoming' ? '📥 Incoming' : '📤 Outgoing',
+          short: true
+        },
+        {
+          title: "From Number",
+          value: formatPhone(eventData.from),
+          short: true
+        },
+        {
+          title: "To Number", 
+          value: formatPhone(eventData.to),
+          short: true
+        },
+        {
+          title: "Status",
+          value: eventData.status || 'Unknown',
+          short: true
+        }
+      );
       
-      fields.push({
-        title: "From Number",
-        value: formatPhone(eventData.from),
-        short: true
-      });
-      
-      fields.push({
-        title: "To Number", 
-        value: formatPhone(eventData.to),
-        short: true
-      });
-      
-      fields.push({
-        title: "Status",
-        value: eventData.status || 'Unknown',
-        short: true
-      });
-      
-      // Add duration for completed calls
       if (eventType === 'call.completed') {
         const duration = eventData.answeredAt && eventData.completedAt 
           ? calculateDuration(eventData.answeredAt, eventData.completedAt)
@@ -187,7 +163,6 @@ export default async function handler(req, res) {
           short: true
         });
         
-        // Add voicemail info if present
         if (eventData.voicemail) {
           fields.push({
             title: "Voicemail Duration",
@@ -198,22 +173,21 @@ export default async function handler(req, res) {
       }
     }
     
-    // Add message-specific fields
+    // Add message fields if it's a message event
     if (eventType.startsWith('message.')) {
-      if (eventData.from) {
-        fields.push({
+      fields.push(
+        {
           title: "From Number",
           value: formatPhone(eventData.from),
           short: true
-        });
-      }
-      if (eventData.to) {
-        fields.push({
+        },
+        {
           title: "To Number",
           value: formatPhone(eventData.to),
           short: true
-        });
-      }
+        }
+      );
+      
       if (eventData.body) {
         fields.push({
           title: "Message Content",
@@ -226,7 +200,7 @@ export default async function handler(req, res) {
     }
     
     // Get attachment title
-    let attachmentTitle;
+    let attachmentTitle = 'OpenPhone Event';
     if (eventType === 'call.completed' || eventType === 'call.ringing') {
       attachmentTitle = eventData.direction === 'incoming' ? 
         `From: ${formatPhone(eventData.from)}` : 
@@ -235,11 +209,9 @@ export default async function handler(req, res) {
       attachmentTitle = `From: ${formatPhone(eventData.from)}`;
     } else if (eventType === 'message.delivered') {
       attachmentTitle = `To: ${formatPhone(eventData.to)}`;
-    } else {
-      attachmentTitle = 'OpenPhone Event';
     }
     
-    // Create professional Mattermost payload
+    // Create Mattermost payload
     const mattermostPayload = {
       username: "OpenPhone",
       icon_url: "https://assets-global.website-files.com/5f3c19f18169b62a0d0bf387/5f3f2dcc8169b6d9ef0c7b60_OpenPhone%20Mark.png",
@@ -293,7 +265,6 @@ export default async function handler(req, res) {
     
     console.log('✅ Successfully forwarded OpenPhone event to Mattermost');
     
-    // Return success response to OpenPhone
     return res.status(200).json({ 
       success: true, 
       message: 'OpenPhone event successfully forwarded to Mattermost',
@@ -310,7 +281,6 @@ export default async function handler(req, res) {
     console.error('❌ OpenPhone webhook proxy error:', error.message);
     console.error('Stack trace:', error.stack);
     
-    // Return error response
     return res.status(500).json({ 
       error: 'OpenPhone webhook proxy failed', 
       message: error.message,
