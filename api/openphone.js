@@ -21,18 +21,11 @@ export default async function handler(req, res) {
     
     const payload = req.body;
     
-    // Extract event type and data from the correct payload structure
-    // Based on actual payload: payload.type = "call.completed", payload.data.object = call data
-    console.log('Debugging payload access:');
-    console.log('payload.type:', payload.type);
-    console.log('payload.data exists:', !!payload.data);
-    console.log('payload.data.object exists:', !!payload.data?.object);
-    
+    // Extract event type and data from OpenPhone payload
     const eventType = payload.type;
     const eventData = payload.data?.object || {};
     
-    console.log('Event type:', eventType);
-    console.log('Event data:', JSON.stringify(eventData, null, 2));
+    console.log('Processing event type:', eventType);
     
     // Format phone numbers
     const formatPhone = (phone) => {
