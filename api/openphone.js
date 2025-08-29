@@ -22,15 +22,14 @@ export default async function handler(req, res) {
     const payload = req.body;
     
     // Extract event type and data from the correct payload structure
-    // Based on logs: payload.object.type = "call.completed", payload.object.data.object = call data
+    // Based on actual payload: payload.type = "call.completed", payload.data.object = call data
     console.log('Debugging payload access:');
-    console.log('payload.object exists:', !!payload.object);
-    console.log('payload.object.type:', payload.object?.type);
-    console.log('payload.object.data exists:', !!payload.object?.data);
-    console.log('payload.object.data.object exists:', !!payload.object?.data?.object);
+    console.log('payload.type:', payload.type);
+    console.log('payload.data exists:', !!payload.data);
+    console.log('payload.data.object exists:', !!payload.data?.object);
     
-    const eventType = payload.object.type;
-    const eventData = payload.object.data.object;
+    const eventType = payload.type;
+    const eventData = payload.data?.object || {};
     
     console.log('Event type:', eventType);
     console.log('Event data:', JSON.stringify(eventData, null, 2));
@@ -232,7 +231,7 @@ export default async function handler(req, res) {
           fields: fields,
           footer: "OpenPhone Communication System",
           footer_icon: "https://assets-global.website-files.com/5f3c19f18169b62a0d0bf387/5f3f2dcc8169b6d9ef0c7b60_OpenPhone%20Mark.png",
-          ts: Math.floor(new Date(eventData.createdAt || payload.object.createdAt).getTime() / 1000)
+          ts: Math.floor(new Date(eventData.createdAt || payload.createdAt).getTime() / 1000)
         }
       ]
     };
