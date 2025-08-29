@@ -21,9 +21,16 @@ export default async function handler(req, res) {
     
     const payload = req.body;
     
-    // Extract event type and data using the structure from debug logs
-    const eventType = payload.object?.type || 'unknown';
-    const eventData = payload.object?.data?.object || {};
+    // Extract event type and data from the correct payload structure
+    // Based on logs: payload.object.type = "call.completed", payload.object.data.object = call data
+    console.log('Debugging payload access:');
+    console.log('payload.object exists:', !!payload.object);
+    console.log('payload.object.type:', payload.object?.type);
+    console.log('payload.object.data exists:', !!payload.object?.data);
+    console.log('payload.object.data.object exists:', !!payload.object?.data?.object);
+    
+    const eventType = payload.object.type;
+    const eventData = payload.object.data.object;
     
     console.log('Event type:', eventType);
     console.log('Event data:', JSON.stringify(eventData, null, 2));
