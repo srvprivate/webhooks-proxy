@@ -33,21 +33,13 @@ export default async function handler(req, res) {
     console.log('Event type:', eventType);
     console.log('Event data:', eventData);
     
-    // Determine event details and formatting
+    // Determine event details and formatting based on all OpenPhone event types
     let title, description, color, icon, priority;
     
     switch (eventType) {
+      // Call Events
       case 'call.completed':
         const direction = eventData.direction;
-        const status = eventData.status;
-        const from = eventData.from;
-        const to = eventData.to;
-        const answeredBy = eventData.answeredBy;
-        const duration = eventData.answeredAt && eventData.completedAt 
-          ? calculateDuration(eventData.answeredAt, eventData.completedAt)
-          : null;
-        
-        // Determine if call was answered or missed
         const wasAnswered = eventData.answeredAt !== null;
         
         if (direction === 'incoming') {
@@ -60,8 +52,8 @@ export default async function handler(req, res) {
           } else {
             title = '📞 Missed Call';
             description = `Incoming call was not answered`;
-            color = '#ffc107'; // Yellow
-            icon = '⚠️';
+            color = '#dc3545'; // Red for missed calls - more urgent
+            icon = '❗';
             priority = 'Warning';
           }
         } else {
@@ -73,20 +65,70 @@ export default async function handler(req, res) {
         }
         break;
         
-      case 'call.started':
-        title = '📞 Call Started';
-        description = `New ${eventData.direction} call in progress`;
+      case 'call.ringing':
+        title = '📞 Call Ringing';
+        description = `${eventData.direction === 'incoming' ? 'Incoming' : 'Outgoing'} call is ringing`;
         color = '#17a2b8'; // Cyan
         icon = '📞';
         priority = 'Info';
         break;
         
-      case 'voicemail.received':
-        title = '🎤 New Voicemail';
-        description = 'New voicemail message received';
+      case 'call.recording.completed':
+        title = '🎙️ Call Recording Ready';
+        description = 'Call recording has been completed and is available';
         color = '#6f42c1'; // Purple
-        icon = '🎤';
+        icon = '🎙️';
+        priority = 'Info';
+        break;
+        
+      case 'call.transcript.completed':
+        title = '📝 Call Transcript Ready';
+        description = 'Call transcription has been completed';
+        color = '#20c997'; // Teal
+        icon = '📝';
+        priority = 'Info';
+        break;
+        
+      case 'call.summary.completed':
+        title = '🤖 AI Call Summary Ready';
+        description = 'AI-generated call summary has been completed';
+        color = '#fd7e14'; // Orange
+        icon = '🤖';
         priority = 'Medium';
+        break;
+        
+      // Message Events
+      case 'message.received':
+        title = '💬 New Message Received';
+        description = 'Incoming text message received';
+        color = '#198754'; // Green
+        icon = '💬';
+        priority = 'Medium';
+        break;
+        
+      case 'message.delivered':
+        title = '✅ Message Delivered';
+        description = 'Outgoing message has been delivered';
+        color = '#0d6efd'; // Blue
+        icon = '✅';
+        priority = 'Info';
+        break;
+        
+      // Contact Events  
+      case 'contact.updated':
+        title = '👤 Contact Updated';
+        description = 'Contact information has been modified';
+        color = '#6c757d'; // Gray
+        icon = '👤';
+        priority = 'Info';
+        break;
+        
+      case 'contact.deleted':
+        title = '🗑️ Contact Deleted';
+        description = 'A contact has been removed';
+        color = '#dc3545'; // Red
+        icon = '🗑️';
+        priority = 'Info';
         break;
         
       default:
@@ -122,38 +164,102 @@ export default async function handler(req, res) {
             `From: ${formatPhone(eventData.from)}` : 
             `To: ${formatPhone(eventData.to)}`,
           text: `**${description}**`,
-          fields: [
-            {
-              title: "Priority",
-              value: `${icon} **${priority}**`,
-              short: true
-            },
-            {
-              title: "Direction",
-              value: eventData.direction === 'incoming' ? '📥 Incoming' : '📤 Outgoing',
-              short: true
-            },
-            {
-              title: "From Number",
-              value: formatPhone(eventData.from),
-              short: true
-            },
-            {
-              title: "To Number", 
-              value: formatPhone(eventData.to),
-              short: true
-            },
-            {
-              title: "Status",
-              value: eventData.status,
-              short: true
-            },
-            {
-              title: "Call Duration",
-              value: duration || 'N/A',
-              short: true
-            }
-          ],
+    // Build dynamic fields based on event type and available data
+    const fields = [
+      {
+        title: "Priority",
+        value: `${icon} **${priority}**`,
+        short: true
+      },
+      {
+        title: "Event Type",
+        value: eventType.replace(/\./g, ' ').replace(/\b\w/g, l => l.toUpperCase()),
+        short: true
+      }
+    ];
+    
+    // Add call-specific fields
+    if (eventType.startsWith('call.') && eventData.direction) {
+      fields.push(
+        {
+          title: "Direction",
+          value: eventData.direction === 'incoming' ? '📥 Incoming' : '📤 Outgoing',
+          short: true
+        },
+        {
+          title: "From Number",
+          value: formatPhone(eventData.from),
+          short: true
+        },
+        {
+          title: "To Number", 
+          value: formatPhone(eventData.to),
+          short: true
+        },
+        {
+          title: "Status",
+          value: eventData.status || 'Unknown',
+          short: true
+        }
+      );
+      
+      // Add duration for completed calls
+      if (eventType === 'call.completed') {
+        const duration = eventData.answeredAt && eventData.completedAt 
+          ? calculateDuration(eventData.answeredAt, eventData.completedAt)
+          : 'Not answered';
+        fields.push({
+          title: "Call Duration",
+          value: duration,
+          short: true
+        });
+      }
+    }
+    
+    // Add message-specific fields
+    if (eventType.startsWith('message.')) {
+      if (eventData.from) {
+        fields.push({
+          title: "From Number",
+          value: formatPhone(eventData.from),
+          short: true
+        });
+      }
+      if (eventData.to) {
+        fields.push({
+          title: "To Number",
+          value: formatPhone(eventData.to),
+          short: true
+        });
+      }
+      if (eventData.body) {
+        fields.push({
+          title: "Message Content",
+          value: eventData.body.length > 100 ? 
+            eventData.body.substring(0, 100) + '...' : 
+            eventData.body,
+          short: false
+        });
+      }
+    }
+    
+    // Add contact-specific fields
+    if (eventType.startsWith('contact.')) {
+      if (eventData.name) {
+        fields.push({
+          title: "Contact Name",
+          value: eventData.name,
+          short: true
+        });
+      }
+      if (eventData.phoneNumber) {
+        fields.push({
+          title: "Phone Number",
+          value: formatPhone(eventData.phoneNumber),
+          short: true
+        });
+      }
+    }
           footer: "OpenPhone Call System",
           footer_icon: "https://assets-global.website-files.com/5f3c19f18169b62a0d0bf387/5f3f2dcc8169b6d9ef0c7b60_OpenPhone%20Mark.png",
           ts: Math.floor(new Date(eventData.createdAt).getTime() / 1000)
@@ -228,6 +334,47 @@ export default async function handler(req, res) {
       timestamp: new Date().toISOString()
     });
   }
+}
+
+// Helper function to get appropriate attachment title based on event type
+function getAttachmentTitle(eventType, eventData) {
+  switch (eventType) {
+    case 'call.completed':
+    case 'call.ringing':
+      return eventData.direction === 'incoming' ? 
+        `From: ${formatPhone(eventData.from)}` : 
+        `To: ${formatPhone(eventData.to)}`;
+    
+    case 'message.received':
+      return `From: ${formatPhone(eventData.from)}`;
+      
+    case 'message.delivered':
+      return `To: ${formatPhone(eventData.to)}`;
+      
+    case 'contact.updated':
+    case 'contact.deleted':
+      return eventData.name || 'Contact Event';
+      
+    case 'call.recording.completed':
+    case 'call.transcript.completed':
+    case 'call.summary.completed':
+      return `Call ID: ${eventData.id || 'Unknown'}`;
+      
+    default:
+      return 'OpenPhone Event';
+  }
+}
+
+// Helper function to format phone numbers
+function formatPhone(phone) {
+  if (!phone) return 'Unknown';
+  // Format +15205675515 as (520) 567-5515
+  const cleaned = phone.replace(/\D/g, '');
+  if (cleaned.length === 11 && cleaned.startsWith('1')) {
+    const number = cleaned.substring(1);
+    return `(${number.substring(0,3)}) ${number.substring(3,6)}-${number.substring(6)}`;
+  }
+  return phone;
 }
 
 // Helper function to calculate call duration
