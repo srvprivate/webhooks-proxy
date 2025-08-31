@@ -63,18 +63,36 @@ export default async function handler(req, res) {
     }
     
     const fields = fieldsBlock.fields;
-    console.log('Found fields:', fields.map(f => f.text?.substring(0, 50)));
+    console.log('=== DEBUGGING FIELD EXTRACTION ===');
+    console.log('Total fields found:', fields.length);
+    fields.forEach((field, index) => {
+      console.log(`Field ${index}:`, {
+        type: field.type,
+        text: field.text,
+        textLength: field.text?.length
+      });
+    });
+    console.log('=== END FIELD DEBUG ===');
     
     // More flexible field extraction
     const getFieldValue = (searchTerm) => {
-      const field = fields.find(f => 
-        f.text && 
-        (f.type === 'mrkdwn' || !f.type) && 
-        f.text.toLowerCase().includes(searchTerm.toLowerCase())
-      );
+      console.log(`\n--- Searching for: "${searchTerm}" ---`);
+      
+      const field = fields.find(f => {
+        if (!f.text) return false;
+        const matchesType = f.type === 'mrkdwn' || !f.type;
+        const matchesText = f.text.toLowerCase().includes(searchTerm.toLowerCase());
+        console.log(`Checking field: "${f.text.substring(0, 100)}" - Type: ${f.type}, Matches: ${matchesText}`);
+        return matchesType && matchesText;
+      });
       
       if (!field) {
-        console.log(`Field not found: ${searchTerm}`);
+        console.log(`❌ Field "${searchTerm}" not found`);
+        // Try alternative search without type restriction
+        const altField = fields.find(f => f.text && f.text.toLowerCase().includes(searchTerm.toLowerCase()));
+        if (altField) {
+          console.log(`⚠️ Found alternate match: "${altField.text.substring(0, 100)}" (type: ${altField.type})`);
+        }
         return 'N/A';
       }
       
@@ -82,18 +100,18 @@ export default async function handler(req, res) {
       let value = field.text.replace(/^\*[^*]+\*\s*/, '').trim();
       // Also handle plain text format: Category: Value
       value = value.replace(/^[^:]+:\s*/, '').trim();
-      console.log(`${searchTerm}: ${value}`);
+      console.log(`✅ Found "${searchTerm}": "${value}"`);
       return value || 'N/A';
     };
     
-    // Extract all alert data
+    // Extract all alert data with more field variations
     const category = getFieldValue('Category');
     const description = getFieldValue('Description');
     const alertType = getFieldValue('Alert Type');
-    const triggerDetails = getFieldValue('Trigger Details');
-    const deviceDescription = getFieldValue('Device Description');
-    const lastUser = getFieldValue('Last User');
-    const os = getFieldValue('OS');
+    const triggerDetails = getFieldValue('Trigger Details') || getFieldValue('Trigger') || getFieldValue('Details');
+    const deviceDescription = getFieldValue('Device Description') || getFieldValue('Description');
+    const lastUser = getFieldValue('Last User') || getFieldValue('User') || getFieldValue('LastUser');
+    const os = getFieldValue('OS') || getFieldValue('Operating System') || getFieldValue('System');
     
     // Find the links section (usually has View Device, View Alert, etc.)
     const linksBlock = slackPayload.blocks.find(block => 
