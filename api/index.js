@@ -223,7 +223,7 @@ export default async function handler(req, res) {
       ]
     };
     
-    // Add actual clickable buttons with colors
+    // Add actual clickable buttons - exact working format
     const actions = [];
     if (deviceUrl !== '#') {
       actions.push({
@@ -231,7 +231,7 @@ export default async function handler(req, res) {
         integration: {
           url: deviceUrl
         },
-        style: "primary"  // Blue button
+        style: "primary"
       });
     }
     if (alertUrl !== '#') {
@@ -240,7 +240,7 @@ export default async function handler(req, res) {
         integration: {
           url: alertUrl
         },
-        style: "danger"   // Red button
+        style: "danger"
       });
     }
     if (siteUrl !== '#') {
@@ -249,7 +249,7 @@ export default async function handler(req, res) {
         integration: {
           url: siteUrl
         },
-        style: "default"  // Gray button
+        style: "default"
       });
     }
     if (remoteUrl !== '#') {
@@ -258,7 +258,7 @@ export default async function handler(req, res) {
         integration: {
           url: remoteUrl
         },
-        style: "good"     // Green button
+        style: "good"
       });
     }
     
